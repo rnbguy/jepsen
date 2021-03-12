@@ -24,14 +24,14 @@
 
 ;;;;;;;;;;;;;;;;;;; Common definitions ;;;;;;;;;;;;;;;;;;;;;;
 
-(defn nemesis-no-gen
-  []
-  {:during gen/void
-   :final gen/void})
+;; (defn nemesis-no-gen
+;;   []
+;;   {:during gen/void
+;;    :final gen/void})
 
 (defn nemesis-single-gen
   []
-  {:during (gen/seq (cycle [(gen/sleep nemesis-delay)
+  {:during (map gen/once (cycle [(gen/sleep nemesis-delay)
                             {:type :info, :f :start}
                             (gen/sleep nemesis-duration)
                             {:type :info, :f :stop}]))
@@ -39,7 +39,7 @@
 
 (defn nemesis-double-gen
   []
-  {:during (gen/seq (cycle [(gen/sleep nemesis-delay)
+  {:during (map gen/once (cycle [(gen/sleep nemesis-delay)
                             {:type :info, :f :start1}
                             (gen/sleep (/ nemesis-duration 2))
                             {:type :info, :f :start2}
@@ -56,7 +56,7 @@
                             (gen/sleep (/ nemesis-duration 2))
                             {:type :info, :f :stop1}
                             ]))
-   :final (gen/seq [{:type :info, :f :stop1}
+   :final (map gen/once [{:type :info, :f :stop1}
                     {:type :info, :f :stop2}])})
 
 (defn compose
@@ -108,12 +108,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;; Nemesis definitions ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; empty nemesis
-(defn none
-  []
-  (merge (nemesis-no-gen)
-         {:name "blank"
-          :client nemesis/noop
-          :clocks false}))
+;; (defn none
+;;   []
+;;   (merge (nemesis-no-gen)
+;;          {:name "blank"
+;;           :client nemesis/noop
+;;           :clocks false}))
 
 ;; random partitions
 (defn parts
@@ -222,7 +222,7 @@
 (defn strobe-skews
   []
   ; This nemesis takes time to run for start, so we don't include any sleeping.
-  {:during (gen/seq (cycle [{:type :info, :f :start}
+  {:during (map gen/once (cycle [{:type :info, :f :start}
                             {:type :info, :f :stop}]))
    :final  (gen/once {:type :info, :f :stop})
    :name   "strobe-skews"

@@ -141,7 +141,7 @@
                                                 :type :invoke
                                                 :f :add
                                                 :value))
-                                  gen/seq
+                                  (map gen.pure/once)
                                   (gen/stagger 1))
                      :final (gen/once {:type :invoke, :f :read, :value nil})}
        :checker     (checker/compose
