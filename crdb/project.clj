@@ -7,5 +7,5 @@
   :dependencies [[org.clojure/clojure "1.10.3"]
                  [jepsen "0.2.4-SNAPSHOT"]
                  [verschlimmbesserung "0.1.3"]]
-  :java-source-paths ["/home/ubuntu/Jepsen_Java_Tests/src/main/java"]
+  :java-source-paths ["/home/ranadeep/phd/projects/jepsen/crdb/Jepsen_Java_Tests/src/main/java"]
   :repl-options {:init-ns crdb.core})
