@@ -54,4 +54,5 @@ services:
       - jepsen
     volumes:
       - "jepsen-shared:/var/jepsen/shared"
+      - /home/ranadeep/phd/projects/jepsen:/jepsen
 %%DBS%%
