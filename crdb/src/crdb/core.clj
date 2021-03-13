@@ -14,16 +14,6 @@
             [jepsen.os.debian :as debian])
 )
 
-(defn node-url
-  "An HTTP url for connecting to a node on a particular port."
-  [node port]
-  (str "http://" node ":" port))
-
-(defn peer-url
-  "The HTTP url for other peers to talk to a node."
-  [node]
-  (node-url node 2380))
-
 (defn listen-addr
   [node]
   (str node ":" 26257))
@@ -31,11 +21,6 @@
 (defn http-addr
   [node]
   (str node ":" 8080))
-
-(defn client-url
-  "The HTTP url clients use to talk to a node."
-  [node]
-  (node-url node 2379))
 
 (defn initial-cluster
   "Constructs an initial cluster string for a test, like
@@ -46,7 +31,7 @@
        (str/join ",")))
 
 (def dir     "/opt/cockroach")
-(def binary "cockroach")
+(def binary (str dir "/cockroach"))
 (def logfile (str dir "/cockroach.log"))
 (def pidfile (str dir "/cockroach.pid"))
 
@@ -72,13 +57,19 @@
           :--listen-addr (listen-addr node)
           :--http-addr (http-addr node)
           :--join (initial-cluster test)
-          :--background)
+          :--background
+          )
+      )
 
-        (Thread/sleep 10000)))
+      ((Thread/sleep 5000)
+      (if (= node "n1") (c/exec binary :init :--insecure :--host (listen-addr "n1")))
+      (Thread/sleep 30000))
+    )
 
     (teardown! [_ test node]
       (info node "tearing down cockroach")
       (cu/stop-daemon! binary pidfile)
+      ;; (c/exec binary :quit :--insecure :--host (listen-addr node))
       (c/su (c/exec :rm :-rf dir)))))
 
 (defn r   [_ _] {:type :invoke, :f :read, :value nil})
@@ -93,7 +84,7 @@
 (defrecord Client [conn]
   client/Client
   (open! [this test node]
-    (assoc this :conn (v/connect (client-url node)
+    (assoc this :conn (v/connect (http-addr node)
                                  {:timeout 5000})))
 
   (setup! [this test])
