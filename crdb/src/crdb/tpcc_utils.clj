@@ -1,4 +1,6 @@
-(in-ns 'jepsen.cassandra)
+(ns crdb.tpcc-utils
+       (:require [clojure.tools.logging :refer :all])
+)
 
 ;; https://github.com/Kiarahmani/Jepsen_Java_Tests/tree/makingTPCC/src/main/java/tpcc
 ;; https://www.cockroachlabs.com/docs/stable/export.html
