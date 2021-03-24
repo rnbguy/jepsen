@@ -32,6 +32,7 @@
        (str/join ",")))
 
 (def dir     "/usr/local/mysql")
+(def galera-dir     "/usr/local/galera")
 (def binary "bin/mysqld_safe")
 (def logfile "/opt/galera.log")
 (def pidfile "/opt/galera.pid")
@@ -64,36 +65,82 @@
     (setup! [_ test node]
       (info node "installing galera" version)
       (c/su
-        (let [url (str "https://ftp.igh.cnrs.fr/pub/mariadb//mariadb-" version "/bintar-linux-x86_64/mariadb-" version "-linux-x86_64.tar.gz")]
-          (cu/install-archive! url "/usr/local/mysql"))
 
-        
-        (debian/install [:libaio1 :libtinfo5])
+          (c/exec :rm :-rf "/usr/local/mysql")
+          (c/exec :rm :-rf "/usr/local/galera")
+
+          (cu/install-archive!
+          (str "https://ftp.igh.cnrs.fr/pub/mariadb//mariadb-10.5.9/bintar-linux-x86_64/mariadb-10.5.9-linux-x86_64.tar.gz")
+          ;; (str "https://ftp.igh.cnrs.fr/pub/mariadb//mariadb-10.3.28/source/mariadb-10.3.28.tar.gz")
+          "/usr/local/mysql")
+
+          (cu/install-archive!
+          (str "http://releases.galeracluster.com/galera-4/binary/galera-4-26.4.7-linux-x86_64.tar.gz")
+          ;; (str "http://releases.galeracluster.com/galera-3/binary/galera-3-25.3.32-linux-x86_64.tar.gz")
+          "/usr/local/galera")
+
+
+        (debian/install [:libaio1 :libtinfo5 :rsync :lsof])
 
         (c/cd dir (c/exec "scripts/mysql_install_db"))
 
+        (when (= node (jepsen/primary test))
         (cu/start-daemon!
           {:logfile logfile
            :pidfile pidfile
            :chdir   dir}
-          binary :--user=root
-          )
+          binary
+          :--user=root
+          :--wsrep-new-cluster
+          :--wsrep-on
+          :--wsrep_provider "/usr/local/galera/lib/libgalera_smm.so"
+          :--wsrep-cluster-address (str "gcomm://" (jepsen/primary test))
+          :--binlog-format :ROW
+          :--default-storage-engine :InnoDB
+          :--innodb-autoinc-lock-mode :2
+          :--innodb-doublewrite
+          :--query-cache-size :0
+          ))
 
+        (Thread/sleep 2000)
+        (jepsen/synchronize test)
+
+        (when (not= node (jepsen/primary test))
+        (cu/start-daemon!
+          {:logfile logfile
+           :pidfile pidfile
+           :chdir   dir}
+          binary
+          :--user=root
+          :--wsrep-on
+          :--wsrep_provider "/usr/local/galera/lib/libgalera_smm.so"
+          :--wsrep-cluster-address (str "gcomm://" (jepsen/primary test))
+          :--binlog-format :ROW
+          :--default-storage-engine :InnoDB
+          :--innodb-autoinc-lock-mode :2
+          :--innodb-doublewrite
+          :--query-cache-size :0
+          ))
+
+        (jepsen/synchronize test)
         (Thread/sleep 5000)
-        (setup-db! node)
 
-        ;; ((Thread/sleep 5000)
-        ;; (if (= node "n1") (c/exec binary :init :--insecure :--host (listen-addr "n1")))
-        (Thread/sleep 30000)
+        (when (= node (jepsen/primary test)) (setup-db! node))
+
+        (jepsen/synchronize test)
+        (Thread/sleep 3000)
       )
     )
 
     (teardown! [_ test node]
       (info node "tearing down galera")
-      (when (cu/exists? dir) (c/cd dir (c/exec "bin/mysqladmin" :shutdown)))
+      (info "ranadeep" node (when (cu/exists? dir) (c/cd dir (c/exec "bin/mysqladmin" :shutdown :|| :cat (str "/usr/local/mysql/data/" node ".err") :|| :echo "it's fine"))))
       (cu/stop-daemon! binary pidfile)
       ;; (c/exec binary :quit :--insecure :--host (listen-addr node))
-      (c/su (c/exec :rm :-rf dir)))))
+      ;; (c/su (c/exec :rm :-rf (str dir "/data")))
+      ;; (c/su (c/exec :rm :-rf galera-dir))
+
+      )))
 
 (defn no [_ _] {:type :invoke, :f :NO})
 (defn pm [_ _] {:type :invoke, :f :PM})
@@ -115,7 +162,7 @@
 
 
   (setup! [this test]
-  (let [stmt (.createStatement (:conn this))] (.executeUpdate stmt "CREATE TABLE IF NOT EXISTS variables") (.close stmt))
+  ;; (let [stmt (.createStatement (:conn this))] (.executeUpdate stmt "CREATE TABLE IF NOT EXISTS variables") (.close stmt))
   (new tpcc.Utils_tpcc 30))
 
   (invoke! [this test op]
