@@ -7,5 +7,5 @@
   :dependencies [[org.clojure/clojure "1.10.3"]
                  [jepsen "0.2.4-SNAPSHOT"]]
   :java-source-paths ["oltp_src/main/java"]
-  :resource-paths ["resources/postgresql-42.2.19.jar"]
+  :resource-paths ["resources/mysql-connector-java-8.0.23.jar"]
   :repl-options {:init-ns crdb.core})
