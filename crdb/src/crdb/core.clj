@@ -15,38 +15,22 @@
           [jepsen.os.debian :as debian])
 )
 
-(defn listen-addr
-  [node]
-  (str node ":" 26257))
+(def mysql-dir "/var/lib/mysql")
+(def mysql-stock-dir "/var/lib/mysql-stock")
 
-(defn http-addr
-  [node]
-  (str node ":" 8080))
+(def cnf-file "/etc/mysql/mariadb.conf.d/50-server.cnf")
+(def cnf-stock-file "/etc/mysql/mariadb.conf.d/50-server.cnf.stock")
 
-(defn initial-cluster
-  "Constructs an initial cluster string for a test, like
-  \"foo:2380,bar:2380,...\""
-  [test]
-  (->> (:nodes test)
-       (map listen-addr)
-       (str/join ",")))
-
-(def dir     "/usr/local/mysql")
-(def galera-dir     "/usr/local/galera")
-(def binary "bin/mysqld_safe")
-(def logfile "/opt/galera.log")
-(def pidfile "/opt/galera.pid")
-(def mysqlbin "bin/mysql")
-
-(defn cluster-address
-  "Connection string for a test."
-  [test]
-  (str "gcomm://" (str/join "," (map name (:nodes test)))))
+(def log-files
+  ["/var/log/syslog"
+   "/var/log/mysql.log"
+   "/var/log/mysql.err"
+   "/var/lib/mysql/queries.log"])
 
 (defn eval!
   "Evals a mysql string from the command line."
   [s]
-  (c/cd dir (c/exec mysqlbin :-u "root" :-e s)))
+  (c/exec :mysql :-u "root" :-e s))
 
 (defn setup-db!
   "Adds a jepsen database to the cluster."
@@ -63,83 +47,62 @@
   [version]
   (reify db/DB
     (setup! [_ test node]
-      (info node "installing galera" version)
       (c/su
+        (when-not (debian/installed? :mariadb-server)
+          (c/exec :apt-get :-y :update)
+          (c/exec :apt-get :-y :upgrade)
+          (debian/install [:mariadb-server])
+        )
 
-          (c/exec :rm :-rf "/usr/local/mysql")
-          (c/exec :rm :-rf "/usr/local/galera")
+        (c/exec :service :mysql :stop)
+        (when-not (cu/exists? mysql-stock-dir)
+          (c/exec :cp :-rp mysql-dir mysql-stock-dir)
+        )
+        (when-not (cu/exists? cnf-stock-file)
+          (c/exec :cp :-p cnf-file cnf-stock-file)
+        )
 
-          (cu/install-archive!
-          (str "https://ftp.igh.cnrs.fr/pub/mariadb//mariadb-10.5.9/bintar-linux-x86_64/mariadb-10.5.9-linux-x86_64.tar.gz")
-          ;; (str "https://ftp.igh.cnrs.fr/pub/mariadb//mariadb-10.3.28/source/mariadb-10.3.28.tar.gz")
-          "/usr/local/mysql")
-
-          (cu/install-archive!
-          (str "http://releases.galeracluster.com/galera-4/binary/galera-4-26.4.7-linux-x86_64.tar.gz")
-          ;; (str "http://releases.galeracluster.com/galera-3/binary/galera-3-25.3.32-linux-x86_64.tar.gz")
-          "/usr/local/galera")
-
-
-        (debian/install [:libaio1 :libtinfo5 :rsync :lsof])
-
-        (c/cd dir (c/exec "scripts/mysql_install_db"))
+        (c/exec :echo (str "
+[galera]
+wsrep_on=ON
+wsrep_provider=/usr/lib/galera/libgalera_smm.so
+wsrep_cluster_address=gcomm://" (when (not= node (jepsen/primary test)) (jepsen/primary test)) "
+binlog_format=row
+default_storage_engine=InnoDB
+innodb_autoinc_lock_mode=2
+innodb_doublewrite=1
+query_cache_size=0
+bind-address=0.0.0.0
+wsrep_cluster_name=\"galera_cluster\"
+wsrep_node_address=\"" node "\"
+        ") :>> cnf-file)
 
         (when (= node (jepsen/primary test))
-        (cu/start-daemon!
-          {:logfile logfile
-           :pidfile pidfile
-           :chdir   dir}
-          binary
-          :--user=root
-          :--wsrep-new-cluster
-          :--wsrep-on
-          :--wsrep_provider "/usr/local/galera/lib/libgalera_smm.so"
-          :--wsrep-cluster-address (str "gcomm://" (jepsen/primary test))
-          :--binlog-format :ROW
-          :--default-storage-engine :InnoDB
-          :--innodb-autoinc-lock-mode :2
-          :--innodb-doublewrite
-          :--query-cache-size :0
-          ))
-
-        (Thread/sleep 2000)
-        (jepsen/synchronize test)
-
-        (when (not= node (jepsen/primary test))
-        (cu/start-daemon!
-          {:logfile logfile
-           :pidfile pidfile
-           :chdir   dir}
-          binary
-          :--user=root
-          :--wsrep-on
-          :--wsrep_provider "/usr/local/galera/lib/libgalera_smm.so"
-          :--wsrep-cluster-address (str "gcomm://" (jepsen/primary test))
-          :--binlog-format :ROW
-          :--default-storage-engine :InnoDB
-          :--innodb-autoinc-lock-mode :2
-          :--innodb-doublewrite
-          :--query-cache-size :0
-          ))
-
-        (jepsen/synchronize test)
-        (Thread/sleep 5000)
+        (c/exec :service :mysql :bootstrap)
+        )
 
         (when (= node (jepsen/primary test)) (setup-db! node))
 
         (jepsen/synchronize test)
-        (Thread/sleep 3000)
+
+        (when (not= node (jepsen/primary test))
+        (c/exec :service :mysql :start)
+        )
+
+        (jepsen/synchronize test)
       )
     )
 
     (teardown! [_ test node]
       (info node "tearing down galera")
-      (info "ranadeep" node (when (cu/exists? dir) (c/cd dir (c/exec "bin/mysqladmin" :shutdown :|| :cat (str "/usr/local/mysql/data/" node ".err") :|| :echo "it's fine"))))
-      (cu/stop-daemon! binary pidfile)
-      ;; (c/exec binary :quit :--insecure :--host (listen-addr node))
-      ;; (c/su (c/exec :rm :-rf (str dir "/data")))
-      ;; (c/su (c/exec :rm :-rf galera-dir))
-
+      (c/exec :service :mysql :stop :|| :echo "prolly not started")
+      (apply c/exec :truncate :-c :--size 0 log-files)
+      (when (cu/exists? mysql-stock-dir)
+        (c/exec :rm :-rf mysql-dir)
+        (c/exec :cp :-rp mysql-stock-dir mysql-dir))
+      (when (cu/exists? cnf-stock-file)
+        (c/exec :rm :-f cnf-file)
+        (c/exec :cp :-p cnf-stock-file cnf-file))
       )))
 
 (defn no [_ _] {:type :invoke, :f :NO})
