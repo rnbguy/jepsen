@@ -44,6 +44,19 @@
   "FLUSH PRIVILEGES;"))
   )
 
+(defn assert_check
+  "Check tpcc assertions"
+  []
+  (str/join ", " (map
+  (fn [i] (+ 1 i))
+  (filter
+    (fn [i]
+      (not= (str/trim (eval! (str "use jepsen;" (nth asserts/assertions i)))) "")
+    )
+    (range 12)
+  )))
+)
+
 (defn db
   "galera DB for a particular version."
   [version]
@@ -102,22 +115,15 @@ wsrep_node_address=\"" node "\"
     (teardown! [_ test node]
       (info node "tearing down galera")
       (try
-        (when (= node (jepsen/primary test))
-          (info node "[ASSERT 01]" (eval! (str "USE jepsen;" asserts/cr01)))
-          (info node "[ASSERT 02]" (eval! (str "USE jepsen;" asserts/cr02)))
-          (info node "[ASSERT 03]" (eval! (str "USE jepsen;" asserts/cr03)))
-          (info node "[ASSERT 04]" (eval! (str "USE jepsen;" asserts/cr04)))
-          (info node "[ASSERT 05]" (eval! (str "USE jepsen;" asserts/cr05)))
-          (info node "[ASSERT 06]" (eval! (str "USE jepsen;" asserts/cr06)))
-          (info node "[ASSERT 07]" (eval! (str "USE jepsen;" asserts/cr07)))
-          (info node "[ASSERT 08]" (eval! (str "USE jepsen;" asserts/cr08)))
-          (info node "[ASSERT 09]" (eval! (str "USE jepsen;" asserts/cr09)))
-          (info node "[ASSERT 10]" (eval! (str "USE jepsen;" asserts/cr10)))
-          (info node "[ASSERT 11]" (eval! (str "USE jepsen;" asserts/cr11)))
-          (info node "[ASSERT 12]" (eval! (str "USE jepsen;" asserts/cr12)))
-        )
-        (catch Exception e (info node "[ASSERT] prolly this is beginning of run"))
+        ;; (when (= node (jepsen/primary test))
+        (info node (str "[ASSERT] cr violations: " (assert_check)))
+        ;; )
+        (catch Exception e (info node (str
+          "[RANADEEP] prolly this is beginning of run"
+          ;; (.getMessage e)
+          )))
       )
+      (jepsen/synchronize test)
       (c/exec :service :mysql :stop :|| :echo "prolly not started")
       ;; (jepsen/synchronize test)
       (when (cu/exists? mysql-stock-dir)
@@ -154,14 +160,18 @@ wsrep_node_address=\"" node "\"
 
   (invoke! [this test op]
     (info "invoking" op)
-    (case (:f op)
+    (try
+    (do (case (:f op)
       :NO ((:javaFunc (nth tpcc/operationMap 0)) (:conn this) (tpcc/getNextArgs 1))
       :PM ((:javaFunc (nth tpcc/operationMap 1)) (:conn this) (tpcc/getNextArgs 2))
       :OS ((:javaFunc (nth tpcc/operationMap 2)) (:conn this) (tpcc/getNextArgs 3))
       :DV ((:javaFunc (nth tpcc/operationMap 3)) (:conn this) (tpcc/getNextArgs 4))
       :SL ((:javaFunc (nth tpcc/operationMap 4)) (:conn this) (tpcc/getNextArgs 5))
     )
-    (assoc op :type :ok)
+    (assoc op :type :ok))
+
+    (catch Exception e (info (str "caught exception: " (.getMessage e))))
+    )
   )
 
   (teardown! [this test])
@@ -178,10 +188,14 @@ wsrep_node_address=\"" node "\"
           :os   debian/os
           :db   (db "10.5.9")
           :client (Client. nil)
+          :nemesis (nemesis/partition-random-halves)
           :generator (->> (gen/mix [no pm os dv sl])
                     (gen/stagger 1)
-                    (gen/nemesis nil)
-                    (gen/time-limit 15))
+                    (gen/nemesis (cycle [(gen/sleep 5)
+                              {:type :info, :f :start}
+                              (gen/sleep 5)
+                              {:type :info, :f :stop}]))
+                    (gen/time-limit (:time-limit opts)))
           :pure-generators true}))
 
 (defn -main
