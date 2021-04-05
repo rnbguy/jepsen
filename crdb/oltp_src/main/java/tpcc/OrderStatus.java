@@ -16,7 +16,7 @@ public class OrderStatus {
 			ResultSet c_rs = null;
 			if (customerByName) {
 				stmt = conn.prepareStatement("SELECT C_ID" + "  FROM " + "CUSTOMER" + " WHERE C_W_ID = ? "
-						+ "   AND C_D_ID = ? " + "   AND C_LAST = ? " + "ALLOW FILTERING");
+						+ "   AND C_D_ID = ? " + "   AND C_LAST = ? " + "");
 				stmt.setInt(1, w_id);
 				stmt.setInt(2, d_id);
 				stmt.setString(3, c_last);
@@ -56,7 +56,7 @@ public class OrderStatus {
 			// find the newest order for the customer
 			// retrieve the carrier & order date for the most recent order.
 			stmt = conn.prepareStatement("SELECT MAX(O_ID) " + "  FROM " + "OORDER" + " WHERE O_W_ID = ? "
-					+ "   AND O_D_ID = ? " + "AND O_C_ID = ? " + "ALLOW FILTERING");
+					+ "   AND O_D_ID = ? " + "AND O_C_ID = ? " + "");
 			stmt.setInt(1, w_id);
 			stmt.setInt(2, d_id);
 			stmt.setInt(3, c_id);

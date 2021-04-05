@@ -24,7 +24,7 @@ public class Delivery {
 			Timestamp timestamp = new Timestamp(System.currentTimeMillis());
 			for (d_id = 1; d_id <= 10; d_id++) {
 				stmt = conn.prepareStatement("SELECT NO_O_ID FROM " + "NEW_ORDER" + " WHERE NO_D_ID = ? "
-						+ "   AND NO_W_ID = ? " + " ORDER BY no_d_id,no_o_id" + " LIMIT 1 ALLOW FILTERING");
+						+ "   AND NO_W_ID = ? " + " ORDER BY no_d_id,no_o_id" + " LIMIT 1" + "");
 				stmt.setInt(1, d_id);
 				stmt.setInt(2, w_id);
 				ResultSet no_rs = stmt.executeQuery();

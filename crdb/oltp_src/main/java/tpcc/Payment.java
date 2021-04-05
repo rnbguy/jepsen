@@ -80,7 +80,7 @@ public class Payment {
 			Timestamp c_since;
 			if (customerByName) {
 				stmt = conn.prepareStatement("SELECT C_ID" + "  FROM " + "CUSTOMER" + " WHERE C_W_ID = ? "
-						+ "   AND C_D_ID = ? " + "   AND C_LAST = ? " + "ALLOW FILTERING");
+						+ "   AND C_D_ID = ? " + "   AND C_LAST = ? " + "");
 				stmt.setInt(1, customerWarehouseID);
 				stmt.setInt(2, customerDistrictID);
 				stmt.setString(3, c_last);

@@ -11,6 +11,8 @@
                   [nemesis :as nemesis]
                   [tests :as tests]]
           [crdb.tpcc-utils :as tpcc]
+          [crdb.sqldump :as sqldump]
+          [crdb.tpcc-asserts :as asserts]
           [jepsen.control.util :as cu]
           [jepsen.os.debian :as debian])
 )
@@ -72,7 +74,7 @@ default_storage_engine=InnoDB
 innodb_autoinc_lock_mode=2
 innodb_doublewrite=1
 query_cache_size=0
-bind-address=0.0.0.0
+bind_address=0.0.0.0
 wsrep_cluster_name=\"galera_cluster\"
 wsrep_node_address=\"" node "\"
         ") :>> cnf-file)
@@ -81,7 +83,7 @@ wsrep_node_address=\"" node "\"
         (c/exec :service :mysql :bootstrap)
         )
 
-        (when (= node (jepsen/primary test)) (setup-db! node))
+        (when (= node (jepsen/primary test)) (setup-db! node) (eval! (str "USE jepsen;" sqldump/sqldump)))
 
         (jepsen/synchronize test)
 
@@ -90,19 +92,41 @@ wsrep_node_address=\"" node "\"
         )
 
         (jepsen/synchronize test)
+
+        ;; (info node "sleeping")
+        ;; (Thread/sleep 30000)
+        ;; (info node "woke")
       )
     )
 
     (teardown! [_ test node]
       (info node "tearing down galera")
+      (try
+        (when (= node (jepsen/primary test))
+          (info node "[ASSERT 01]" (eval! (str "USE jepsen;" asserts/cr01)))
+          (info node "[ASSERT 02]" (eval! (str "USE jepsen;" asserts/cr02)))
+          (info node "[ASSERT 03]" (eval! (str "USE jepsen;" asserts/cr03)))
+          (info node "[ASSERT 04]" (eval! (str "USE jepsen;" asserts/cr04)))
+          (info node "[ASSERT 05]" (eval! (str "USE jepsen;" asserts/cr05)))
+          (info node "[ASSERT 06]" (eval! (str "USE jepsen;" asserts/cr06)))
+          (info node "[ASSERT 07]" (eval! (str "USE jepsen;" asserts/cr07)))
+          (info node "[ASSERT 08]" (eval! (str "USE jepsen;" asserts/cr08)))
+          (info node "[ASSERT 09]" (eval! (str "USE jepsen;" asserts/cr09)))
+          (info node "[ASSERT 10]" (eval! (str "USE jepsen;" asserts/cr10)))
+          (info node "[ASSERT 11]" (eval! (str "USE jepsen;" asserts/cr11)))
+          (info node "[ASSERT 12]" (eval! (str "USE jepsen;" asserts/cr12)))
+        )
+        (catch Exception e (info node "[ASSERT] prolly this is beginning of run"))
+      )
       (c/exec :service :mysql :stop :|| :echo "prolly not started")
-      (apply c/exec :truncate :-c :--size 0 log-files)
+      ;; (jepsen/synchronize test)
       (when (cu/exists? mysql-stock-dir)
         (c/exec :rm :-rf mysql-dir)
         (c/exec :cp :-rp mysql-stock-dir mysql-dir))
       (when (cu/exists? cnf-stock-file)
         (c/exec :rm :-f cnf-file)
         (c/exec :cp :-p cnf-stock-file cnf-file))
+      (apply c/exec :truncate :-c :--size 0 log-files)
       )))
 
 (defn no [_ _] {:type :invoke, :f :NO})
@@ -126,7 +150,7 @@ wsrep_node_address=\"" node "\"
 
   (setup! [this test]
   ;; (let [stmt (.createStatement (:conn this))] (.executeUpdate stmt "CREATE TABLE IF NOT EXISTS variables") (.close stmt))
-  (new tpcc.Utils_tpcc 30))
+  (new tpcc.Utils_tpcc 0))
 
   (invoke! [this test op]
     (info "invoking" op)

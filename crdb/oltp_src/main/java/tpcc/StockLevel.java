@@ -32,7 +32,7 @@ public class StockLevel {
 			//
 			// retrieve the latest 20 orders
 			stmt = conn.prepareStatement(
-					"select ol_i_id from order_line WHERE ol_w_id=? and ol_d_id=? and OL_O_ID < ? and ol_o_id > ?");
+					"SELECT ol_i_id FROM " + "ORDER_LINE" + " WHERE ol_w_id=? and ol_d_id=? and OL_O_ID < ? and ol_o_id > ?");
 			stmt.setInt(1, w_id);
 			stmt.setInt(2, d_id);
 			stmt.setInt(3, o_id);
@@ -47,7 +47,7 @@ public class StockLevel {
 					.collect(Collectors.toList());
 			String in_clause = Utils_tpcc.get_in_clause(ditinct_ol_i_ids);
 			stmt = conn.prepareStatement("SELECT * FROM STOCK WHERE " + "s_w_id=? " + "AND S_QUANTITY < ? "
-					+ "AND s_i_id IN " + in_clause + " ALLOW FILTERING");
+					+ "AND s_i_id IN " + in_clause + "");
 			stmt.setInt(1, w_id);
 			stmt.setDouble(2, threshold);
 			ResultSet s_rs = stmt.executeQuery();

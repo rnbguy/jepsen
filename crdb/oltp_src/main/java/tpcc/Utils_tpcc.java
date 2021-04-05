@@ -13,6 +13,16 @@ public class Utils_tpcc {
 	static int scale = -10;
 	private static Random r = new Random();
 
+	public final static int configCommitCount = 1000; // commit every n records
+	public final static int configWhseCount = 1;
+	public final static int configItemCount = 1; // tpc-c std = 100,000
+	public final static int configDistPerWhse = 2; // tpc-c std = 10
+	public final static int configCustPerDist = 3; // tpc-c std = 3,000
+
+	public final static int h_amount = 10;
+	public final static int w_ytd = h_amount * configCustPerDist * configDistPerWhse;
+	public final static int d_ytd = h_amount * configCustPerDist;
+
 	// this function will be -dynamically- called from clojure at runtime
 	public Utils_tpcc(int scale) {
 		Utils_tpcc.scale = scale;
@@ -52,19 +62,23 @@ public class Utils_tpcc {
 	 */
 
 	public static int get_w_id() {
-		return ThreadLocalRandom.current().nextInt(1, scale + 1);
+		// return ThreadLocalRandom.current().nextInt(1, scale + 1);
+		return ThreadLocalRandom.current().nextInt(1, configWhseCount + 1);
 	}
 
 	public static int get_d_id() {
-		return ThreadLocalRandom.current().nextInt(1, 11);
+		// return ThreadLocalRandom.current().nextInt(1, 11);
+		return ThreadLocalRandom.current().nextInt(1, configDistPerWhse + 1);
 	}
 
 	public static int get_c_id() {
-		return ThreadLocalRandom.current().nextInt(1, 3001);
+		// return ThreadLocalRandom.current().nextInt(1, 3001);
+		return ThreadLocalRandom.current().nextInt(1, configCustPerDist + 1);
 	}
 
 	public static int get_i_id() {
-		return ThreadLocalRandom.current().nextInt(1, 1001);
+		// return ThreadLocalRandom.current().nextInt(1, 1001);
+		return ThreadLocalRandom.current().nextInt(1, configItemCount + 1);
 	}
 
 	public static int get_num_items() {
